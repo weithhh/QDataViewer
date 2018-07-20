@@ -3,6 +3,7 @@
 
 #include <QMainWindow>
 #include <QLabel>
+#include <QTableWidget>
 
 namespace Ui {
 class MainWindow;
@@ -17,8 +18,8 @@ public:
 	 ~MainWindow();
 
 private slots:
-	void onInputUpdate();
-	void onOutputConfigUpdate(int btnId = 0);
+	void onTableFieldValueUpdate(QTableWidgetItem* item);
+	void onOutputUpdateRequest(int btnId = 0);
 	void onTableFieldUpdate();
 	void onCellDoubleClick(int row, int column);
 	void onCellMergeRequest();
@@ -28,6 +29,7 @@ private:
 	Ui::MainWindow *ui;
 	QString inputBits;
 	QLabel* bitSelectStatus;
+	QTableWidget* table;
 
 	bool eventFilter(QObject *watched, QEvent *event);
 

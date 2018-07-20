@@ -9,11 +9,7 @@
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWindow) {
 	ui->setupUi(this);
 
-	QButtonGroup* inputTypeGroup = new QButtonGroup();
-	inputTypeGroup->addButton(ui->IN_HEX);
-	inputTypeGroup->addButton(ui->IN_BIN);
-	inputTypeGroup->addButton(ui->IN_DEC);
-	inputTypeGroup->setExclusive(true);
+	table = ui->tableWidget;
 
 	QButtonGroup* outputTypeGroup = new QButtonGroup();
 	outputTypeGroup->addButton(ui->OUT_HEX);
@@ -27,22 +23,44 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	outputWidthGroup->addButton(ui->OUT_32BIT);
 	outputWidthGroup->setExclusive(true);
 
-	ui->tableWidget->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
-
-	connect(ui->tableWidget, &QTableWidget::itemSelectionChanged, this, &MainWindow::onSelectChange);
-	connect(ui->tableWidget, &QTableWidget::cellDoubleClicked, this, &MainWindow::onCellDoubleClick);
-
-	connect(ui->IN, &QLineEdit::returnPressed, this, &MainWindow::onInputUpdate);
-	connect(ui->OUT_NOSPACE, &QPushButton::clicked, this, &MainWindow::onOutputConfigUpdate);
-
-	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputConfigUpdate);
-	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputConfigUpdate);
-
-	ui->tableWidget->installEventFilter(this);
+	table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
 
 	bitSelectStatus = new QLabel("0 bit");
 	bitSelectStatus->setStyleSheet("padding: 5px");
 	ui->statusBar->addPermanentWidget(bitSelectStatus);
+
+	for (int i = 0, j = table->columnCount() - 1; i < table->columnCount(); i++, j--) {
+		table->setHorizontalHeaderItem(i, new QTableWidgetItem(QString::number(j)));
+
+		QTableWidgetItem* bitItem = new QTableWidgetItem();
+		bitItem->setTextAlignment(Qt::AlignCenter);
+		bitItem->setFlags(bitItem->flags() & ~Qt::ItemIsEditable);
+		bitItem->setText("0");
+		table->setItem(0, i, bitItem);
+
+		QTableWidgetItem* valueItem = new QTableWidgetItem();
+		valueItem->setTextAlignment(Qt::AlignCenter);
+		valueItem->setText("0");
+		table->setItem(1, i, valueItem);
+
+		QTableWidgetItem* nameItem = new QTableWidgetItem();
+		nameItem->setTextAlignment(Qt::AlignCenter);
+		table->setItem(2, i, nameItem);
+	}
+
+	onOutputUpdateRequest();
+
+	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onSelectChange);
+	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onCellDoubleClick);
+	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
+
+	connect(ui->OUT_NOSPACE, &QPushButton::clicked, this, &MainWindow::onOutputUpdateRequest);
+
+	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
+	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
+
+	table->installEventFilter(this);
+
 }
 
 MainWindow::~MainWindow(){
@@ -50,11 +68,18 @@ MainWindow::~MainWindow(){
 }
 
 bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
-	if (watched == ui->tableWidget && event->type() == QEvent::KeyPress) {
+	if (watched == table && event->type() == QEvent::KeyPress) {
 		QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
 		if (keyEvent->key() == Qt::Key_Space) {
 			onCellMergeRequest();
 			return true;
+		}
+		if (keyEvent->key() == Qt::Key_Delete) {
+			QTableWidgetItem* item = table->currentItem();
+			if (item->row() == 2) {
+				item->setText("");
+			}
+
 		}
 	}
 	return false;
@@ -75,59 +100,32 @@ QString MainWindow::convertToBits(QString input, unsigned int base, bool* ok) {
 	return bits;
 }
 
-void MainWindow::onInputUpdate() { //TODO: should save field names
-	//Clean up whitespace
-	QString inputText = ui->IN->text().remove(QRegExp("\\s"));
-	if (ui->IN->text().isEmpty()) return;
+void MainWindow::onTableFieldValueUpdate(QTableWidgetItem* item) {
+	if (item->row() != 1) return;
 
-	//Conversion of input value
 	bool conversionSuccess;
-
-	if (ui->IN_HEX->isChecked()) {
-		inputText = inputText.remove("0x", Qt::CaseInsensitive);
-		inputBits = convertToBits(inputText, 16, &conversionSuccess);
-	} else if (ui->IN_BIN->isChecked()) {
-		//Just to verify input
-		inputBits = convertToBits(inputText, 2, &conversionSuccess);
-	} else if (ui->IN_DEC->isChecked()) {
-		inputBits = convertToBits(inputText, 10, &conversionSuccess);
+	quint64 fieldValue;
+	if (item->text().contains("0x", Qt::CaseInsensitive)) {
+		fieldValue = item->text().toULongLong(&conversionSuccess, 16);
+	} else {
+		fieldValue = item->text().toULongLong(&conversionSuccess, 10);
 	}
 
 	if (!conversionSuccess) {
 		ui->statusBar->showMessage("Failed to parse input value", 3000);
 		return;
-	} else {
-		QString text = QString("Detected %1 bytes").arg((int)inputBits.size() / 8);
-		if (inputBits.size() % 8 != 0) {
-			text += QString(" and %1 bits").arg(inputBits.size() % 8);
-		}
-		ui->statusBar->showMessage(text, 3000);
 	}
 
-	//Table update
-	ui->tableWidget->setColumnCount(inputBits.size());
-
-	for (int i = 0, j = inputBits.size() - 1; i < inputBits.size(); i++, j--) {
-		ui->tableWidget->setHorizontalHeaderItem(i, new QTableWidgetItem(QString::number(j)));
-
-		QTableWidgetItem* valueItem = new QTableWidgetItem();
-		valueItem->setTextAlignment(Qt::AlignCenter);
-		valueItem->setFlags(valueItem->flags() & ~Qt::ItemIsEditable);
-		valueItem->setText(inputBits.at(i));
-		ui->tableWidget->setItem(0, i, valueItem);
-		ui->tableWidget->setItem(1, i, valueItem->clone());
-
-		QTableWidgetItem* nameItem = new QTableWidgetItem();
-		nameItem->setTextAlignment(Qt::AlignCenter);
-		ui->tableWidget->setItem(2, i, nameItem);
+	int itemCol = item->column();
+	QString fieldBits = QString::number(fieldValue, 2).rightJustified(table->columnSpan(1, itemCol), '0');
+	for (int i = fieldBits.size() - 1; i >= 0; i--) {
+		table->item(0, i + itemCol)->setText(QString(fieldBits.at(i)));
 	}
 
-	onOutputConfigUpdate();
+	onOutputUpdateRequest();
 }
 
 void MainWindow::onTableFieldUpdate() {
-	QTableWidget* table = ui->tableWidget;
-
 	//Recalculate field values
 	for (int i = 0; i < table->columnCount(); i++) {
 		int colSpan = table->columnSpan(1, i);
@@ -152,8 +150,8 @@ QStringList MainWindow::tableBitsToChunks(int size) {
 	QStringList chunks;
 	QString chunk;
 
-	for (int i = 0; i < ui->tableWidget->columnCount(); i++) {
-		chunk.append(ui->tableWidget->item(0, i)->text());
+	for (int i = 0; i < table->columnCount(); i++) {
+		chunk.append(table->item(0, i)->text());
 		if (chunk.size() >= size) {
 			chunks.append(chunk);
 			chunk.clear();
@@ -166,7 +164,7 @@ QStringList MainWindow::tableBitsToChunks(int size) {
 	return chunks;
 }
 
-void MainWindow::onOutputConfigUpdate(int btnId) {
+void MainWindow::onOutputUpdateRequest(int btnId) {
 	//Process table data and spit it to OUT field
 	QStringList inputChunks;
 
@@ -200,19 +198,18 @@ void MainWindow::onOutputConfigUpdate(int btnId) {
 
 void MainWindow::onCellDoubleClick(int row, int column) {
 	if (row != 0) return;
-	if (ui->tableWidget->item(0, column)->text() == "0") {
-		ui->tableWidget->item(0, column)->setText("1");
+
+	if (table->item(0, column)->text() == "0") {
+		table->item(0, column)->setText("1");
 	} else {
-		ui->tableWidget->item(0, column)->setText("0");
-	}
+		table->item(0, column)->setText("0");
+	}	
 
 	onTableFieldUpdate();
-	onOutputConfigUpdate();
+	onOutputUpdateRequest();
 }
 
 QList<int> MainWindow::getSelectedColumns() {
-	QTableWidget* table = ui->tableWidget;
-
 	QItemSelectionModel* selectionModel = table->selectionModel();
 
 	QList<int> selectedColumns;
@@ -227,8 +224,6 @@ QList<int> MainWindow::getSelectedColumns() {
 }
 
 void MainWindow::onCellMergeRequest() {
-	QTableWidget* table = ui->tableWidget;
-
 	QList<int> selectedColumns = getSelectedColumns();
 	if (selectedColumns.size() <= 1) return;
 
@@ -251,7 +246,7 @@ void MainWindow::onCellMergeRequest() {
 	}
 
 	onTableFieldUpdate();
-	onOutputConfigUpdate();
+	onOutputUpdateRequest();
 }
 
 void MainWindow::onSelectChange() {
