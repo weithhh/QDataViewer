@@ -25,6 +25,11 @@ private slots:
 	void onCellMergeRequest();
 	void onSelectChange();
 
+	void onColumnDeleteAction(bool checked = false);
+	void onColumnAddToRightAction(bool checked = false);
+	void onColumnAddToLeftAction(bool checked = false);
+
+
 private:
 	Ui::MainWindow *ui;
 	QString inputBits;
@@ -32,6 +37,8 @@ private:
 	QTableWidget* table;
 
 	bool eventFilter(QObject *watched, QEvent *event);
+	void setTableActions();
+	void initTable();
 
 	QString convertToBits(QString input, unsigned int base, bool* ok);
 	QStringList tableBitsToChunks(int size);

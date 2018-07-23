@@ -2,6 +2,7 @@
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QAction>
 
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
@@ -23,14 +24,47 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	outputWidthGroup->addButton(ui->OUT_32BIT);
 	outputWidthGroup->setExclusive(true);
 
+	setTableActions();
 	table->horizontalHeader()->setSectionResizeMode(QHeaderView::Stretch);
+
+	initTable();
 
 	bitSelectStatus = new QLabel("0 bit");
 	bitSelectStatus->setStyleSheet("padding: 5px");
 	ui->statusBar->addPermanentWidget(bitSelectStatus);
 
+	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onSelectChange);
+	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onCellDoubleClick);
+	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
+
+	connect(ui->OUT_NOSPACE, &QPushButton::clicked, this, &MainWindow::onOutputUpdateRequest);
+
+	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
+	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
+
+	table->installEventFilter(this);
+
+}
+
+void MainWindow::setTableActions() {
+	QAction* delAction = new QAction("Delete");
+	connect(delAction, &QAction::triggered, this, &MainWindow::onColumnDeleteAction);
+	table->addAction(delAction);
+
+	QAction* addLeftAction = new QAction("Add to left");
+	connect(addLeftAction, &QAction::triggered, this, &MainWindow::onColumnAddToLeftAction);
+	table->addAction(addLeftAction);
+
+	QAction* addRightAction = new QAction("Add to right");
+	connect(addRightAction, &QAction::triggered, this, &MainWindow::onColumnAddToRightAction);
+	table->addAction(addRightAction);
+}
+
+void MainWindow::initTable() {
 	for (int i = 0, j = table->columnCount() - 1; i < table->columnCount(); i++, j--) {
 		table->setHorizontalHeaderItem(i, new QTableWidgetItem(QString::number(j)));
+
+		if (table->item(0, i) != nullptr) continue;
 
 		QTableWidgetItem* bitItem = new QTableWidgetItem();
 		bitItem->setTextAlignment(Qt::AlignCenter);
@@ -49,18 +83,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	}
 
 	onOutputUpdateRequest();
-
-	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onSelectChange);
-	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onCellDoubleClick);
-	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
-
-	connect(ui->OUT_NOSPACE, &QPushButton::clicked, this, &MainWindow::onOutputUpdateRequest);
-
-	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
-	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
-
-	table->installEventFilter(this);
-
 }
 
 MainWindow::~MainWindow(){
@@ -151,7 +173,11 @@ QStringList MainWindow::tableBitsToChunks(int size) {
 	QString chunk;
 
 	for (int i = 0; i < table->columnCount(); i++) {
-		chunk.append(table->item(0, i)->text());
+		if (table->item(0, i) != nullptr) {
+			chunk.append(table->item(0, i)->text());
+		} else {
+			chunk.append(0);
+		}
 		if (chunk.size() >= size) {
 			chunks.append(chunk);
 			chunk.clear();
@@ -251,4 +277,40 @@ void MainWindow::onCellMergeRequest() {
 
 void MainWindow::onSelectChange() {
 	bitSelectStatus->setText(QString::number(getSelectedColumns().size()) + " bit");
+}
+
+void MainWindow::onColumnDeleteAction(bool checked) {
+	QList<int> selectedColumns = getSelectedColumns();
+
+	for (int i = 0; i < selectedColumns.size(); i++) {
+		table->removeColumn(selectedColumns.first());
+	}
+
+	if (table->columnCount() == 0) {
+		for (int i = 0; i < 16; i++) {
+			table->insertColumn(0);
+		}
+
+		initTable();
+	}
+}
+
+void MainWindow::onColumnAddToLeftAction(bool checked) {
+	QList<int> selectedColumns = getSelectedColumns();
+
+	for (int i = 0; i < selectedColumns.size(); i++) {
+		table->insertColumn(selectedColumns.first());
+	}
+
+	initTable();
+}
+
+void MainWindow::onColumnAddToRightAction(bool checked) {
+	QList<int> selectedColumns = getSelectedColumns();
+
+	for (int i = 0; i < selectedColumns.size(); i++) {
+		table->insertColumn(selectedColumns.last() + 1);
+	}
+
+	initTable();
 }

@@ -121,6 +121,9 @@
             <height>135</height>
            </size>
           </property>
+          <property name="contextMenuPolicy">
+           <enum>Qt::ActionsContextMenu</enum>
+          </property>
           <property name="selectionBehavior">
            <enum>QAbstractItemView::SelectColumns</enum>
           </property>
