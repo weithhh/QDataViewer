@@ -4,6 +4,8 @@
 #include <QMainWindow>
 #include <QLabel>
 #include <QTableWidget>
+#include <QDir>
+#include <QListWidgetItem>
 
 namespace Ui {
 class MainWindow;
@@ -23,26 +25,33 @@ private slots:
 	void onTableFieldUpdate();
 	void onCellDoubleClick(int row, int column);
 	void onCellMergeRequest();
-	void onSelectChange();
+	void onTableSelectChange();
 
 	void onColumnDeleteAction(bool checked = false);
 	void onColumnAddToRightAction(bool checked = false);
 	void onColumnAddToLeftAction(bool checked = false);
 
+	void onStorageSaveRequest(bool checked = false);
+	void onStorageLoadRequest(bool checked = false);
+	void onStorageRenameRequest(QListWidgetItem* item);
+	void onStorageSelectionChanged();
 
 private:
 	Ui::MainWindow *ui;
 	QString inputBits;
 	QLabel* bitSelectStatus;
 	QTableWidget* table;
+	QDir* storageDir;
+	QString storageCurrentItemText;
 
 	bool eventFilter(QObject *watched, QEvent *event);
-	void setTableActions();
-	void initTable();
+	void tableActionsSet();
+	void tableItemsHeaderInit();
+	void storageListUpdate();
 
 	QString convertToBits(QString input, unsigned int base, bool* ok);
 	QStringList tableBitsToChunks(int size);
-	QList<int> getSelectedColumns();
+	QList<int> tableSelectedColumns();
 };
 
 #endif // MAINWINDOW_H

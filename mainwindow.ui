@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>837</width>
+    <width>853</width>
     <height>227</height>
    </rect>
   </property>
@@ -34,6 +34,9 @@
   <property name="windowIcon">
    <iconset resource="resource.qrc">
     <normaloff>:/icons/icon.ico</normaloff>:/icons/icon.ico</iconset>
+  </property>
+  <property name="locale">
+   <locale language="English" country="UnitedKingdom"/>
   </property>
   <widget class="QWidget" name="centralWidget">
    <property name="sizePolicy">
@@ -79,13 +82,33 @@
        <number>0</number>
       </property>
       <item>
-       <widget class="QListView" name="STORAGE_LIST"/>
+       <widget class="QListWidget" name="STORAGE_LIST">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Minimum" vsizetype="Expanding">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="maximumSize">
+         <size>
+          <width>170</width>
+          <height>16777215</height>
+         </size>
+        </property>
+       </widget>
       </item>
       <item>
        <layout class="QHBoxLayout" name="horizontalLayout_5">
         <property name="spacing">
          <number>5</number>
         </property>
+        <item>
+         <widget class="QPushButton" name="STORAGE_LOAD">
+          <property name="text">
+           <string>LOAD</string>
+          </property>
+         </widget>
+        </item>
         <item>
          <widget class="QPushButton" name="STORAGE_SAVE">
           <property name="text">
