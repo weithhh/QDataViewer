@@ -16,15 +16,13 @@ class MainWindow : public QMainWindow
 	Q_OBJECT
 
 public:
-	explicit MainWindow(QWidget *parent = 0);
+	explicit MainWindow(QWidget *parent = nullptr);
 	 ~MainWindow();
 
 private slots:
 	void onTableFieldValueUpdate(QTableWidgetItem* item);
 	void onOutputUpdateRequest(int btnId = 0);
-	void onTableFieldUpdate();
-	void onCellDoubleClick(int row, int column);
-	void onCellMergeRequest();
+	void onTableCellDoubleClick(int row, int column);
 	void onTableSelectChange();
 
 	void onColumnDeleteAction(bool checked = false);
@@ -47,6 +45,8 @@ private:
 	bool eventFilter(QObject *watched, QEvent *event);
 	void tableActionsSet();
 	void tableItemsHeaderInit();
+	void tableFieldValueRecalculate();
+	void tableMergeSelectedColumns();
 	void storageListUpdate();
 
 	QString convertToBits(QString input, unsigned int base, bool* ok);

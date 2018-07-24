@@ -1,4 +1,4 @@
-#include <QButtonGroup>
+﻿#include <QButtonGroup>
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -51,19 +51,18 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	storageListUpdate();
 	ui->STORAGE_LIST->installEventFilter(this);
 
-	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onTableSelectChange);
-	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onCellDoubleClick);
+	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onTableSelectionChanged);
+	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onTableCellDoubleClick);
 	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
 
 	connect(ui->OUT_NOSPACE, &QPushButton::clicked, this, &MainWindow::onOutputUpdateRequest);
-
 	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
 	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
 
-	connect(ui->STORAGE_SAVE, &QPushButton::clicked, this, &MainWindow::onStorageSaveRequest);
-	connect(ui->STORAGE_LOAD, &QPushButton::clicked, this, &MainWindow::onStorageLoadRequest);
+	connect(ui->STORAGE_SAVE, &QPushButton::clicked, this, &MainWindow::onStorageSaveClicked);
+	connect(ui->STORAGE_LOAD, &QPushButton::clicked, this, &MainWindow::onStorageLoadClicked);
 	connect(ui->STORAGE_LIST, &QListWidget::itemSelectionChanged, this, &MainWindow::onStorageSelectionChanged);
-	connect(ui->STORAGE_LIST, &QListWidget::itemChanged, this, &MainWindow::onStorageRenameRequest);
+	connect(ui->STORAGE_LIST, &QListWidget::itemChanged, this, &MainWindow::onStorageItemChanged);
 }
 
 void MainWindow::tableActionsSet() {
@@ -85,28 +84,32 @@ MainWindow::~MainWindow(){
 }
 
 void MainWindow::tableItemsHeaderInit() {
+	disconnect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
+
 	for (int i = 0, j = table->columnCount() - 1; i < table->columnCount(); i++, j--) {
 		table->setHorizontalHeaderItem(i, new QTableWidgetItem(QString::number(j)));
 
-		if (table->item(0, i) == 0) {
+		if (table->item(0, i) == nullptr) {
 			QTableWidgetItem* bitItem = new QTableWidgetItem();
 			bitItem->setTextAlignment(Qt::AlignCenter);
 			bitItem->setFlags(bitItem->flags() & ~Qt::ItemIsEditable);
 			bitItem->setText("0");
 			table->setItem(0, i, bitItem);
 		}
-		if (table->item(1, i) == 0) {
+		if (table->item(1, i) == nullptr) {
 			QTableWidgetItem* valueItem = new QTableWidgetItem();
 			valueItem->setTextAlignment(Qt::AlignCenter);
 			valueItem->setText("0");
 			table->setItem(1, i, valueItem);
 		}
-		if (table->item(2, i) == 0) {
+		if (table->item(2, i) == nullptr) {
 			QTableWidgetItem* nameItem = new QTableWidgetItem();
 			nameItem->setTextAlignment(Qt::AlignCenter);
 			table->setItem(2, i, nameItem);
 		}
 	}
+
+	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
 
 	onOutputUpdateRequest();
 }
@@ -115,7 +118,7 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 	if (watched == table && event->type() == QEvent::KeyPress) {
 		QKeyEvent* keyEvent = static_cast<QKeyEvent*>(event);
 		if (keyEvent->key() == Qt::Key_Space) {
-			onCellMergeRequest();
+			tableMergeSelectedColumns();
 			return true;
 		}
 		if (keyEvent->key() == Qt::Key_Delete) {
@@ -137,21 +140,6 @@ bool MainWindow::eventFilter(QObject *watched, QEvent *event) {
 	return false;
 }
 
-QString MainWindow::convertToBits(QString input, unsigned int base, bool* ok) {
-	QString bits;
-
-	for (int i = 0; i < input.size(); i++) {
-		QString charStr = QString(input.at(i));
-		QString charBits = QString::number(charStr.toUInt(ok, base), 2);
-		if (base != 2) {
-			charBits = charBits.rightJustified(4, '0');
-		}
-		bits.append(charBits);
-	}
-
-	return bits;
-}
-
 void MainWindow::onTableFieldValueUpdate(QTableWidgetItem* item) {
 	if (item->row() != 1) return;
 
@@ -171,14 +159,17 @@ void MainWindow::onTableFieldValueUpdate(QTableWidgetItem* item) {
 	int itemCol = item->column();
 	QString fieldBits = QString::number(fieldValue, 2).rightJustified(table->columnSpan(1, itemCol), '0');
 	for (int i = fieldBits.size() - 1; i >= 0; i--) {
-		table->item(0, i + itemCol)->setText(QString(fieldBits.at(i)));
+		if (table->item(0, i + itemCol) != nullptr) {
+			table->item(0, i + itemCol)->setText(QString(fieldBits.at(i)));
+		}
 	}
 
 	onOutputUpdateRequest();
 }
 
-void MainWindow::onTableFieldUpdate() {
-	//Recalculate field values
+void MainWindow::tableFieldValueRecalculate() {
+	disconnect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
+
 	for (int i = 0; i < table->columnCount(); i++) {
 		int colSpan = table->columnSpan(1, i);
 		if (colSpan > 1) {
@@ -188,7 +179,7 @@ void MainWindow::onTableFieldUpdate() {
 			}
 
 			quint64 fieldValue = fieldBits.toULongLong(nullptr, 2);
-			QString fieldText = "0x" + QString::number(fieldValue, 16).rightJustified(ceil((float)colSpan / 4), '0').toUpper();
+			QString fieldText = "0x" + QString::number(fieldValue, 16).rightJustified(ceil(colSpan / 4), '0').toUpper();
 			table->item(1, i)->setText(fieldText);
 
 			i += colSpan - 1;
@@ -196,6 +187,8 @@ void MainWindow::onTableFieldUpdate() {
 			table->item(1, i)->setText(table->item(0, i)->text());
 		}
 	}
+
+	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
 }
 
 QStringList MainWindow::tableBitsToChunks(int size) {
@@ -206,7 +199,7 @@ QStringList MainWindow::tableBitsToChunks(int size) {
 		if (table->item(0, i) != nullptr) {
 			chunk.append(table->item(0, i)->text());
 		} else {
-			chunk.append(0);
+			chunk.append("0");
 		}
 		if (chunk.size() >= size) {
 			chunks.append(chunk);
@@ -252,7 +245,7 @@ void MainWindow::onOutputUpdateRequest(int btnId) {
 	ui->OUT->setText(chunkTexts.join(ui->OUT_NOSPACE->isChecked() ? "" : " "));
 }
 
-void MainWindow::onCellDoubleClick(int row, int column) {
+void MainWindow::onTableCellDoubleClick(int row, int column) {
 	if (row != 0) return;
 
 	if (table->item(0, column)->text() == "0") {
@@ -261,7 +254,7 @@ void MainWindow::onCellDoubleClick(int row, int column) {
 		table->item(0, column)->setText("0");
 	}	
 
-	onTableFieldUpdate();
+	tableFieldValueRecalculate();
 	onOutputUpdateRequest();
 }
 
@@ -279,7 +272,7 @@ QList<int> MainWindow::tableSelectedColumns() {
 	return selectedColumns;
 }
 
-void MainWindow::onCellMergeRequest() {
+void MainWindow::tableMergeSelectedColumns() {
 	QList<int> selectedColumns = tableSelectedColumns();
 	if (selectedColumns.size() <= 1) return;
 
@@ -301,11 +294,11 @@ void MainWindow::onCellMergeRequest() {
 		table->setSpan(2, selectedColumns.first(), 1, abs(selectedColumns.last() - selectedColumns.first()) + 1);
 	}
 
-	onTableFieldUpdate();
+	tableFieldValueRecalculate();
 	onOutputUpdateRequest();
 }
 
-void MainWindow::onTableSelectChange() {
+void MainWindow::onTableSelectionChanged() {
 	bitSelectStatus->setText(QString::number(tableSelectedColumns().size()) + " bit");
 }
 
@@ -345,7 +338,7 @@ void MainWindow::onColumnAddToRightAction(bool checked) {
 	tableItemsHeaderInit();
 }
 
-void MainWindow::onStorageSaveRequest(bool checked) {
+void MainWindow::onStorageSaveClicked(bool checked) {
 	QString fileName = QDateTime::currentDateTime().toString("ddMMyy-hhmmss") + ".xml";
 	QFile file(storageDir->absoluteFilePath(fileName));
 	file.open(QFile::WriteOnly);
@@ -398,7 +391,7 @@ void MainWindow::storageListUpdate() {
 	}
 }
 
-void MainWindow::onStorageRenameRequest(QListWidgetItem* item) {
+void MainWindow::onStorageItemChanged(QListWidgetItem* item) {
 	storageDir->rename(storageCurrentItemText + ".xml", item->text() + ".xml");
 	storageListUpdate();
 }
@@ -407,12 +400,12 @@ void MainWindow::onStorageSelectionChanged() {
 	storageCurrentItemText = ui->STORAGE_LIST->currentItem()->text();
 }
 
-void MainWindow::onStorageLoadRequest(bool checked) {
+void MainWindow::onStorageLoadClicked(bool checked) {
 	QString fileName = ui->STORAGE_LIST->currentItem()->text() + ".xml";
 	QFile file(storageDir->absoluteFilePath(fileName));
 	file.open(QFile::ReadOnly);
 
-	table->clear();
+	table->setColumnCount(0);
 
 	QXmlStreamReader xml(&file);
 
@@ -427,11 +420,11 @@ void MainWindow::onStorageLoadRequest(bool checked) {
 				int col = xml.attributes().value("col").toInt();
 				int span = xml.attributes().value("span").toInt();
 
-				table->item(1, col)->setText(xml.attributes().value("value").toString());
 				table->setSpan(1, col, 1, span);
+				table->item(1, col)->setText(xml.attributes().value("value").toString());
 
-				table->item(2, col)->setText(xml.readElementText());
 				table->setSpan(2, col, 1, span);
+				table->item(2, col)->setText(xml.readElementText());
 			}
 		}
 	}
