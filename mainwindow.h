@@ -20,18 +20,22 @@ public:
 	 ~MainWindow();
 
 private slots:
-	void onTableFieldValueUpdate(QTableWidgetItem* item);
+    void onStorageItemChanged(QListWidgetItem *item);
+    void onStorageLoadClicked(bool checked);
+    void onStorageSaveClicked(bool checked);
+    void onTableSelectionChanged();
+    void onTableFieldValueUpdate(QTableWidgetItem* item);
 	void onOutputUpdateRequest(int btnId = 0);
 	void onTableCellDoubleClick(int row, int column);
-	void onTableSelectChange();
+    //void onTableSelectChange();
 
 	void onColumnDeleteAction(bool checked = false);
 	void onColumnAddToRightAction(bool checked = false);
 	void onColumnAddToLeftAction(bool checked = false);
 
-	void onStorageSaveRequest(bool checked = false);
-	void onStorageLoadRequest(bool checked = false);
-	void onStorageRenameRequest(QListWidgetItem* item);
+    //void onStorageSaveRequest(bool checked = false);
+    //void onStorageLoadRequest(bool checked = false);
+    // void onStorageRenameRequest(QListWidgetItem* item);
 	void onStorageSelectionChanged();
 
 private:
@@ -51,7 +55,7 @@ private:
 
 	QString convertToBits(QString input, unsigned int base, bool* ok);
 	QStringList tableBitsToChunks(int size);
-	QList<int> tableSelectedColumns();
+    QList<int> tableSelectedColumns();
 };
 
 #endif // MAINWINDOW_H
