@@ -1,4 +1,6 @@
-﻿#include <QButtonGroup>
+﻿#include <cmath>
+
+#include <QButtonGroup>
 #include <QTableWidget>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -51,7 +53,7 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	storageListUpdate();
 	ui->STORAGE_LIST->installEventFilter(this);
 
-	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onTableSelectionChanged);
+	connect(table, &QTableWidget::itemSelectionChanged, this, &MainWindow::onTableSelectChange);
 	connect(table, &QTableWidget::cellDoubleClicked, this, &MainWindow::onTableCellDoubleClick);
 	connect(table, &QTableWidget::itemChanged, this, &MainWindow::onTableFieldValueUpdate);
 
@@ -59,10 +61,10 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent), ui(new Ui::MainWi
 	connect(outputTypeGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
 	connect(outputWidthGroup, QOverload<int>::of(&QButtonGroup::buttonClicked), this, &MainWindow::onOutputUpdateRequest);
 
-	connect(ui->STORAGE_SAVE, &QPushButton::clicked, this, &MainWindow::onStorageSaveClicked);
-	connect(ui->STORAGE_LOAD, &QPushButton::clicked, this, &MainWindow::onStorageLoadClicked);
+	connect(ui->STORAGE_SAVE, &QPushButton::clicked, this, &MainWindow::onStorageSaveRequest);
+	connect(ui->STORAGE_LOAD, &QPushButton::clicked, this, &MainWindow::onStorageLoadRequest);
 	connect(ui->STORAGE_LIST, &QListWidget::itemSelectionChanged, this, &MainWindow::onStorageSelectionChanged);
-	connect(ui->STORAGE_LIST, &QListWidget::itemChanged, this, &MainWindow::onStorageItemChanged);
+	connect(ui->STORAGE_LIST, &QListWidget::itemChanged, this, &MainWindow::onStorageRenameRequest);
 }
 
 void MainWindow::tableActionsSet() {
@@ -298,7 +300,7 @@ void MainWindow::tableMergeSelectedColumns() {
 	onOutputUpdateRequest();
 }
 
-void MainWindow::onTableSelectionChanged() {
+void MainWindow::onTableSelectChange() {
 	bitSelectStatus->setText(QString::number(tableSelectedColumns().size()) + " bit");
 }
 
@@ -338,7 +340,7 @@ void MainWindow::onColumnAddToRightAction(bool checked) {
 	tableItemsHeaderInit();
 }
 
-void MainWindow::onStorageSaveClicked(bool checked) {
+void MainWindow::onStorageSaveRequest(bool checked) {
 	QString fileName = QDateTime::currentDateTime().toString("ddMMyy-hhmmss") + ".xml";
 	QFile file(storageDir->absoluteFilePath(fileName));
 	file.open(QFile::WriteOnly);
@@ -391,7 +393,7 @@ void MainWindow::storageListUpdate() {
 	}
 }
 
-void MainWindow::onStorageItemChanged(QListWidgetItem* item) {
+void MainWindow::onStorageRenameRequest(QListWidgetItem* item) {
 	storageDir->rename(storageCurrentItemText + ".xml", item->text() + ".xml");
 	storageListUpdate();
 }
@@ -400,7 +402,7 @@ void MainWindow::onStorageSelectionChanged() {
 	storageCurrentItemText = ui->STORAGE_LIST->currentItem()->text();
 }
 
-void MainWindow::onStorageLoadClicked(bool checked) {
+void MainWindow::onStorageLoadRequest(bool checked) {
 	QString fileName = ui->STORAGE_LIST->currentItem()->text() + ".xml";
 	QFile file(storageDir->absoluteFilePath(fileName));
 	file.open(QFile::ReadOnly);
